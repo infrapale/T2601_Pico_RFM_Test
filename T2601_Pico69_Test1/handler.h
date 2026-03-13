@@ -15,6 +15,10 @@ typedef enum
 
 void handler_initialize(void);
 
+void handler_print_fields(void);
+
+bool handler_split_msg(char *msg, int16_t rssi );
+
 bool handler_parse_msg(char *msg, int16_t rssi );
 
 //void handler_process_event(event_radio_msg_st ev):

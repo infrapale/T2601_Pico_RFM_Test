@@ -83,7 +83,7 @@ void initialize_tasks(void)
   atask_add_new(&clock_handle);
   atask_add_new(&modem_handle);
   #ifdef SEND_TEST_MSG
-  // atask_add_new(&send_test_data_handle);
+  atask_add_new(&send_test_data_handle);
   #endif
 
 }
@@ -136,9 +136,9 @@ void loop()
         rssi = rfm69_modem.get_last_rssi();
         Serial.print(mbuff); Serial.print(" RSSI: "); Serial.println(rssi);
         SerialTFT.println(mbuff);
-        if (handler_parse_msg(mbuff,rssi))
+        if (handler_split_msg(mbuff,rssi))
         {
-            // handler_process_event();
+        //     // handler_process_event();
         }
         delay(3000);
         //rfm69_modem.radiate_node_json((char*) "<R1X1J1:Dock;T_bmp1;9.1;->");
@@ -166,11 +166,15 @@ void debug_print_task(void)
 #ifdef SEND_TEST_MSG
 void send_test_data_task(void)
 {
+    static uint8_t mindx = 0;
     // if  (send_test_data_handle.state >= NBR_TEST_MSG ) send_test_data_handle.state = 0;
 
     // uart_p->rx.str  = test_msg[send_test_data_handle.state];
     // uart_p->rx.avail = true;
     // send_test_data_handle.state++;
+    Serial.println(test_msg[mindx]);
+    SerialTFT.println(test_msg[mindx]);
+    if(++mindx >= NBR_TEST_MSG) mindx = 0;
 }
 #endif
 

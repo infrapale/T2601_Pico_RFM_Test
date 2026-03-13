@@ -74,6 +74,7 @@ UART Command Syntax
       R Radio
       Y Relay
       K Keypad
+      C Clock/Time
       # All modules
     module_addr and sender addr
       0-9
