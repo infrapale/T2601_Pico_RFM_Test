@@ -4,54 +4,84 @@
 
 typedef struct
 {
-    uint8_t  pin;
-    uint16_t tick_cntr;
-} led_ctrl_st;
+  uint8_t   pin;
+  uint32_t  pattern;
+  uint16_t  tick_nbr;
+  bool      enable;
+  bool      forever;
+} led_st;
 
-
-led_ctrl_st led_ctrl[LED_NBR_OF] = 
+typedef struct
 {
-    [LED_INDX_RED]       = {PIN_LED_RED, 0,},
-    [LED_INDX_BLUE]      = {PIN_LED_BLUE, 0}
+  uint8_t pattern_bit;
+  uint8_t switches;
+  uint8_t tindx;
+} io_ctrl_st;
+
+io_ctrl_st io_ctrl;
+
+led_st led[COLOR_NBR_OF] =
+{
+    {PIN_LED_RED, 0, 0, false},
+    {PIN_LED_BLUE, 0, 0, false},
 };
+
+
+
+const uint32_t led_pattern[BLINK_NBR_OF] = 
+{
+    [BLINK_OFF]       = 0b00000000000000000000000000000000,
+    [BLINK_ON]        = 0b11111111111111111111111111111111,
+    [BLINK_1_FLASH]   = 0b00000000000000000000000000000001,
+    [BLINK_2_FLASH]   = 0b10000000000000001000000000000000,
+    [BLINK_4_FLASH]   = 0b10000001000000001000000010000000,
+    [BLINK_SLOW]      = 0b11111111111111110000000000000000,
+    [BLINK_NORMAL]    = 0b11110000111100001111000011110000,
+    [BLINK_FAST]      = 0b11001100110011001100110011001100,
+    [BLINK_SOS]       = 0b10010010011100111001110010010010,
+    [BLINK_JITTER_1]  = 0b10101010101010101010101010101010,
+    [BLINK_JITTER_2]  = 0b10010010010010010010010010010010,
+    [BLINK_JITTER_3]  = 0b10001000100010001000100010001000,
+};
+
 
 void io_initialize(void)
 {
-    // pinMode(PIN_LED_ONBOARD, OUTPUT);
-    // digitalWrite(PIN_LED_ONBOARD, LOW);
-
-    #ifdef  LED_INDICATION
-    //pinMode(PIN_LED_RED, OUTPUT);
-    //pinMode(PIN_LED_GREEN, OUTPUT);
-    pinMode(PIN_LED_BLUE, OUTPUT);
-    //digitalWrite(PIN_LED_RED, LOW);
-    //digitalWrite(PIN_LED_GREEN, LOW);
-    digitalWrite(PIN_LED_BLUE, LOW);
-    // digitalWrite(PIN_LED_RED, HIGH);   delay(1000);
-    // digitalWrite(PIN_LED_GREEN, HIGH); delay(1000);
-    // digitalWrite(PIN_LED_RED, LOW); digitalWrite(PIN_LED_GREEN, LOW);  digitalWrite(PIN_LED_BLUE, LOW);
-    #endif
-    io_led_flash(LED_INDX_BLUE,10);
-
-}
-
-void io_led_flash(led_index_et led_indx, uint16_t nbr_ticks )
-{
-    digitalWrite(led_ctrl[led_indx].pin, HIGH);
-    led_ctrl[led_indx].tick_cntr = nbr_ticks;
-}
-
-void io_run_100ms(void)
-{
-    for (uint8_t lindx = 0; lindx < LED_NBR_OF; lindx++ )
+    for (uint8_t i = COLOR_RED; i <= COLOR_BLUE; i++)
     {
-       if (led_ctrl[lindx].tick_cntr > 0)
-       {
-          led_ctrl[lindx].tick_cntr--;
-          if (led_ctrl[lindx].tick_cntr == 0)
-          {
-            digitalWrite(led_ctrl[lindx].pin, LOW);
-          }
-       } 
-    }
+        pinMode(led[i].pin, OUTPUT);
+        digitalWrite(led[i].pin, LOW);
+    } 
+}
+
+void io_led_flash(color_et color, blink_et bindx, uint16_t tick_nbr)
+{
+  led[color].pattern = led_pattern[bindx];
+  led[color].tick_nbr = tick_nbr;
+  if(tick_nbr == BLINK_DISABLE) led[color].enable = false;
+  else led[color].enable = true;
+  if(tick_nbr == BLINK_FOREVER) led[color].forever = true;
+  else led[color].forever = false;
+}
+
+void io_task(void)
+{
+
+    uint32_t patt = 1UL << io_ctrl.pattern_bit;
+    for (uint8_t i = COLOR_RED; i <= COLOR_BLUE; i++)
+    {
+        if (led[i].enable){
+            if ((led[i].tick_nbr > 0) || led[i].forever) {
+                if ((led[i].pattern & patt) != 0)
+                    digitalWrite(led[i].pin, HIGH);
+                else  
+                    digitalWrite(led[i].pin, LOW);
+            }
+            if(!led[i].forever){
+                if(led[i].tick_nbr == 0) digitalWrite(led[i].pin, LOW);
+                else led[i].tick_nbr--;  
+            }
+        }
+    } 
+    if (++io_ctrl.pattern_bit >= 32) io_ctrl.pattern_bit = 0;
 }

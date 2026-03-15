@@ -26,6 +26,11 @@
 
 typedef struct
 {
+    uint32_t next_io_tick;
+} main_ctrl_st;
+
+typedef struct
+{
     char            tag;
     char            addr;         
 } modem_data_st;

@@ -42,19 +42,40 @@
 #define PIN_ABTN        (27u)
 
 
+#define BLINK_DISABLE  (9998)
+#define BLINK_FOREVER  (9999)
 
 typedef enum
 {
-    LED_INDX_RED =0,
-    LED_INDX_BLUE,
-    LED_INDX_NBR_OF
-} led_index_et;
+    COLOR_RED = 0,
+    COLOR_BLUE,
+    COLOR_NBR_OF
+} color_et;
+
+typedef enum
+{
+  BLINK_OFF = 0,
+  BLINK_ON,
+  BLINK_1_FLASH,
+  BLINK_2_FLASH,
+  BLINK_4_FLASH,
+  BLINK_SLOW,
+  BLINK_NORMAL,
+  BLINK_FAST,
+  BLINK_SOS,
+  BLINK_JITTER_1,
+  BLINK_JITTER_2,
+  BLINK_JITTER_3,
+  BLINK_NBR_OF
+} blink_et;
 
 void io_initialize(void);
 
-void io_led_flash(led_index_et led_indx, uint16_t nbr_ticks );
+void io_task_initialize(void);
 
-void io_run_100ms(void);
+void io_led_flash(color_et color, blink_et bindx, uint16_t tick_nbr);
+
+void io_task(void);
 
 
 #endif

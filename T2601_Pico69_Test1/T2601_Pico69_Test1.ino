@@ -1,5 +1,5 @@
 /*****************************************************************************
-T2512_RFM69_Modem 
+T2601_Pico69_Test 
 *******************************************************************************
 
 HW: Adafruit RP2040 Feather + RFM69
@@ -44,6 +44,8 @@ Relay Mesage      <#R12=x>   x:  0=off, 1=on, T=toggle
 //*********************************************************************************************
 #define SERIAL_BAUD   9600
 #define ENCRYPTKEY    RFM69_KEY   // defined in secret.h
+#define IO_TICK_INTERVAL    (100)
+
 RH_RF69         rf69(RFM69_CS, RFM69_INT);
 Rfm69Modem      rfm69_modem(&rf69,  RFM69_RST, PIN_LED_BLUE );
 modem_data_st   modem_data = {MY_MODULE_TAG, MY_MODULE_ADDR};
@@ -57,16 +59,16 @@ const char test_msg[NBR_TEST_MSG][LEN_TEST_MSG] =
     "<R1X1J1:Dock;T_Water;5.3;->",
     "<R1X1J1:Dock;ldr1;0.33;->",
 };
+main_ctrl_st ctrl = {0};
 
 void debug_print_task(void);
-void run_100ms(void);
+//void run_100ms(void);
 void send_test_data_task(void);
 void rfm_receive_task(void); 
 void modem_task(void);
 
 
 atask_st debug_print_handle        = {"Debug Print    ", 5000,0, 0, 255, 0, 1, debug_print_task};
-atask_st clock_handle              = {"Tick Task      ", 100,0, 0, 255, 0, 1, run_100ms};
 atask_st modem_handle              = {"Radio Modem    ", 100,0, 0, 255, 0, 1, modem_task};
 #ifdef SEND_TEST_MSG
 atask_st send_test_data_handle     = {"Send Test Task ", 10000,0, 0, 255, 0, 1, send_test_data_task};
@@ -80,7 +82,6 @@ atask_st send_test_data_handle     = {"Send Test Task ", 10000,0, 0, 255, 0, 1, 
 void initialize_tasks(void)
 {
   //atask_add_new(&debug_print_handle);
-  atask_add_new(&clock_handle);
   atask_add_new(&modem_handle);
   #ifdef SEND_TEST_MSG
   atask_add_new(&send_test_data_handle);
@@ -122,6 +123,12 @@ void setup()
     #endif
 }
 
+void setup1(){
+    io_initialize();
+    ctrl.next_io_tick = millis() + IO_TICK_INTERVAL;
+}
+
+
 #define BUFF_LEN   80
 char mbuff[BUFF_LEN];
 int16_t rssi;
@@ -146,6 +153,15 @@ void loop()
     }
 }
 
+void loop1()
+{
+    if(millis() > ctrl.next_io_tick){
+        ctrl.next_io_tick = millis() + IO_TICK_INTERVAL;
+        io_task();
+    }
+}
+
+
 void modem_task(void)
 {
     rfm69_modem.modem_task();
@@ -154,7 +170,7 @@ void modem_task(void)
 
 void run_100ms(void)
 {
-    io_run_100ms();
+    io_task();
 }
 
 void debug_print_task(void)
