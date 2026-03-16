@@ -4,22 +4,9 @@
 #define   __APP__ ((char*)"T2601_Pico69")
 
 #define DEBUG_PRINT 
-//#define SEND_TEST_MSG 
-//#define ADA_M0_RFM69 
-//#define ADA_PICO_FEATHER
 #define T2601_PICO_RFM69
-//#define PRO_MINI_RFM69
 #include <Arduino.h>
 #include "rfm69.h"
-
-#ifdef  ADA_M0_RFM69
-#define SerialX  Serial1
-#else
-#define SerialX Serial
-#endif
-
-#define TASK_NBR_OF  3
-#define LED_INDICATION
 
 #define MY_MODULE_TAG   'R'
 #define MY_MODULE_ADDR  '1'

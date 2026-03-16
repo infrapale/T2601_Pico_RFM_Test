@@ -1,13 +1,21 @@
 #include <stdlib.h>
 #include "main.h"
+#include "io.h"
 #include "handler.h"
 #include "uart.h"
 #include "atask.h"
+#include "secrets.h"
+#include <RH_RF69.h>
+#include "Rfm69Modem.h"
 
-#define  NBR_OF_EVENTS     4
-#define  MSG_TAG_LEN       8
-#define  MSG_MAX_FIELD_NBR 16
-#define  MSG_FIELD_LEN     16
+#define     MSG_MAX_FIELD_NBR   16
+#define     MSG_FIELD_LEN       16
+#define     BUFF_LEN            80
+#define     ENCRYPTKEY          RFM69_KEY   // defined in secret.h
+
+RH_RF69         rf69(RFM69_CS, RFM69_INT);
+Rfm69Modem      rfm69_modem(&rf69,  RFM69_RST, -1 );
+modem_data_st   modem_data = {MY_MODULE_TAG, MY_MODULE_ADDR};
 
 
 typedef enum
@@ -16,41 +24,7 @@ typedef enum
     MSG_MATCH_NBR_OF
 } msg_match_et;
 
-typedef struct 
-{
-    char        tag[MSG_TAG_LEN];
-    char        label[13];
-    char        value[13];
-    int16_t     rssi;
-} event_radio_msg_st;
-
-
 char msg_field[MSG_MAX_FIELD_NBR][MSG_FIELD_LEN] = {};
-
-
-
-
-typedef struct
-{
-    event_radio_msg_st msg;
-    uint8_t     severity;
-    uint8_t     state;
-    uint8_t     new_val;
-    uint8_t     prev_val;
-    uint32_t    timeout;
-    uint32_t    last_update;
-    uint32_t    next_update;
-    uint32_t    alarm_timeout;
-    uint32_t    wait_timeout;
-} event_st;
-
-
-typedef struct
-{
-     char  zone[MSG_FIELD_LEN];
-     char  item[MSG_FIELD_LEN];
-     char  value[MSG_FIELD_LEN];
-} node_field_values_st;
 
 typedef struct
 {
@@ -67,35 +41,12 @@ typedef struct
 } msg_match_st;
 
 
-// typedef struct
-// {
-//     uint8_t state;
-//     uint32_t alarm_timeout;
-//     uint32_t wait_timeout;
-// } node_state_machine_st;
-
-// typedef struct
-// {
-//     node_field_values_st fields;
-//     node_type_et type;
-//     int16_t rssi;
-//     uint32_t last_update;
-//     node_state_machine_st sm; 
-// } node_st;
-
-
 typedef struct
 {
+    char        mbuff[BUFF_LEN];
     int16_t     rssi;
     uint8_t     nbr_fields;
     date_time_st    date_time;
-    uint8_t     alarm_level;
-    uint8_t     prev_alarm_level;
-    uint32_t    timeout;
-    uint8_t     relay_module_indx;
-    uint8_t     relay_indx;
-    uint8_t     opto_indx;
-    uint32_t    radiate_timeout;
 } handler_ctrl_st;
 
 
@@ -111,36 +62,22 @@ handler_ctrl_st hctrl =
     .rssi = 0,
     .nbr_fields = 0,
     .date_time = {0,0,0,0,0},
-    .timeout = 0,
-    .relay_module_indx = 0,
-    .relay_indx = 0,
-    .opto_indx = 0,
-    // .decoded_opto = {
-    //     RELAY_MODULE_TAG, RELAY_MODULE_ADDR, 
-    //     MY_MODULE_TAG, MY_MODULE_ADDR,
-    //     OPTO_FUNCTION, WILD_CHAR,
-    //     ACTION_GET, WILD_CHAR
-    // },
-    // .decoded_relay = {
-    //     RELAY_MODULE_TAG, RELAY_MODULE_ADDR, 
-    //     MY_MODULE_TAG, MY_MODULE_ADDR,
-    //     RELAY_FUNCTION, '0',
-    //     ACTION_SET, WILD_CHAR
-    // },
-    // .decoded_rec = {'*','*','*','*','*','*','*','*'},
-    .radiate_timeout = 0
 };
+void handler_task(void);
+void modem_task(void);
 
-// atask_st modem_handle    = {"Radio Modem    ", 100,0, 0, 255, 0, 1, modem_task};
-//atask_st h_handle           = {"Handler Task   ", 100,0, 0, 255, 0, 1, handler_task};
+atask_st mth                = {"Radio Modem    ", 100,0, 0, 255, 0, 1, modem_task};
+atask_st hth                = {"Handler Task   ", 100,0, 0, 255, 0, 1, handler_task};
 
+uint8_t key[] = RFM69_KEY;
 
 void handler_initialize(void)
 {
-    // atask_add_new(&h_handle);
+    rfm69_modem.initialize(MY_MODULE_TAG, MY_MODULE_ADDR, key);
+    rfm69_modem.radiate(__APP__);
+
+    atask_add_new(&hth);
 }
-
-
 
 uint8_t handler_find_match(char *msg_tag)
 {
@@ -202,21 +139,46 @@ void handler_print_date_time(date_time_st *date_time_p)
         date_time_p->hour ,
         date_time_p->minute);
 }
-void handler_process_fields(void)
+
+bool validate_range(uint32_t value, uint32_t min, uint32_t max)
 {
+    if((value >= min) && (value <= max)) 
+        return true;
+    else
+        return false;
+}
+
+bool handler_process_fields(void)
+{
+    bool all_correct = true;
+    uint32_t u32;
     uint8_t mindx =handler_find_match(msg_field[0]);
     Serial.printf("Match Index %d\n",mindx);
     switch(mindx)
     {
         case MSG_MATCH_DATE_TIME:
-            hctrl.date_time.year    = (uint16_t) strtoul(msg_field[1], NULL,10);
-            hctrl.date_time.month   = (uint8_t) strtoul(msg_field[2], NULL,10);
-            hctrl.date_time.day     = (uint8_t) strtoul(msg_field[3], NULL,10);
-            hctrl.date_time.hour    = (uint8_t) strtoul(msg_field[4], NULL,10);
-            hctrl.date_time.minute  = (uint8_t) strtoul(msg_field[5], NULL,10);
+            u32 = strtoul(msg_field[1], NULL,10);
+            if(validate_range(u32,2026,2999)) hctrl.date_time.year = (uint16_t)u32;
+            else all_correct = false;
+            u32 = strtoul(msg_field[2], NULL,10);
+            if(validate_range(u32,1,12)) hctrl.date_time.month = (uint8_t)u32;
+            else all_correct = false;
+            u32 = strtoul(msg_field[3], NULL,10);
+            if(validate_range(u32,1,31)) hctrl.date_time.day = (uint8_t)u32;
+            else all_correct = false;
+            u32 = strtoul(msg_field[4], NULL,10);
+            if(validate_range(u32,0,24)) hctrl.date_time.hour = (uint8_t)u32;
+            else all_correct = false;
+            u32 = strtoul(msg_field[5], NULL,10);
+            if(validate_range(u32,0,60)) hctrl.date_time.minute = (uint8_t)u32;
+            else all_correct = false;
+            if(all_correct) Serial.print("Correct Date&Time: ");
+            else Serial.print("Inorrect Date&Time: ");
             handler_print_date_time(&hctrl.date_time);
+            Serial.println();
             break;
     }
+    return all_correct;
 }
 bool handler_split_msg(char *msg, int16_t rssi )
 {
@@ -257,11 +219,51 @@ bool handler_split_msg(char *msg, int16_t rssi )
             findx++;
         }
     }
-
-    if (do_continue) {
-        hctrl.nbr_fields = findx;
-        handler_print_fields();
-        handler_process_fields();
-    }
+    hctrl.nbr_fields = findx;
     return do_continue;
+}
+
+void modem_task(void)
+{
+     rfm69_modem.modem_task();
+}
+
+
+void handler_task(void)
+{
+    switch(hth.state)
+    {
+        case 0:
+            hth.state = 10;
+            break;
+        case 10:
+            if(rfm69_modem.msg_is_avail())
+            {
+                io_led_flash(COLOR_BLUE, BLINK_JITTER_1, 40);
+                // rfm69_modem.get_msg(mbuff, BUFF_LEN, false);
+                rfm69_modem.get_msg(hctrl.mbuff, BUFF_LEN, true);    //.get_msg_decode(mbuff, BUFF_LEN, true);
+                hctrl.rssi = rfm69_modem.get_last_rssi();
+                Serial.print(hctrl.mbuff); Serial.print(" RSSI: "); Serial.println(hctrl.rssi);
+                hth.state = 20;
+            }    
+            break;
+        case 20:
+            if (handler_split_msg(hctrl.mbuff,hctrl.rssi))
+            {
+                handler_print_fields();
+                if(handler_process_fields()) {
+                    SerialTFT.println(hctrl.mbuff);
+                    hth.state = 30;
+                } else hth.state = 100;
+            } else hth.state = 100;
+            break;
+        case 30:
+            handler_print_fields();
+            hth.state = 10;
+            break;
+        case 100:    
+            hth.state = 10;
+            io_led_flash(COLOR_RED, BLINK_NORMAL, 20);
+            break;
+    }
 }

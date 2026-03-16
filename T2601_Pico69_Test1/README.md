@@ -1,6 +1,13 @@
-# T2311_RFM69_Modem
-
+*******************************************************************************
+# T2601_Pico69_Test1
+*******************************************************************************
+Own required libraries:
+https://github.com/infrapale/T2409_atask.git
 https://github.com/infrapale/T2512_RFM69_Modem_Library.git
+
+
+*******************************************************************************
+
 
 *******************************************************************************
                   -------------------
@@ -101,6 +108,13 @@ UART Command Syntax
 *******************************************************************************
 
     Examples:
+      Receive Date&Time Message
+          [RFM69]  --> <##C1T1=;2026;03;16;09;09>
+          ! Check and Identify Message, if OK:
+          [SerialTFT] <-- <##C1T1=;2026;03;16;09;09>CrLf
+
+      Need to verified....
+
       Check if we have available messages:  
           <R1X1A0?*>  
           <X1R1A0:1>    1 message is available   

@@ -1,3 +1,175 @@
+
+*********************************************************************************************************
+*********************************************************************************************************
+*********************************************************************************************************
+*********************************************************************************************************
+---------------------------------------------------------------------------------------------------------
+
+typedef enum
+{
+    NODE_TYPE_UNDEF = 0,
+    NODE_TYPE_PIR,
+    NODE_TYPE_DOOR,
+    NODE_TYPE_TEMPERATURE,
+    NODE_TYPE_NBR_OF,
+} node_type_et;
+
+*********************************************************************************************************
+
+#ifndef __ALARM_H__
+#define __ALARM_H__
+
+// <ALARM;A1;3;Piha>
+typedef struct
+{
+    uint8_t     severity;
+    char        rem[FIELD_LEN];
+    uint16_t     state;
+    uint32_t    interval;
+    uint32_t    duration;
+    uint32_t    timeout;
+} alarm_test_msg_st;
+
+void alarm_initialize(void);
+
+#endif
+---------------------------------------------------------------------------------------------------------
+#include "main.h"
+#include "Rfm69Modem.h"
+#include "handler.h"
+#include "alarm.h"
+#include "atask.h"
+
+typedef struct 
+{
+    Rfm69Modem  *modem;
+    uint32_t    timeout;
+} alarm_ctrl_st;
+
+extern modem_data_st   modem_data;
+
+void alarm_task(void);
+
+// atask_st modem_handle    = {"Radio Modem    ", 100,0, 0, 255, 0, 1, modem_task};
+atask_st a_handle           = {"Alarm   Task   ", 100,0, 0, 255, 0, 1, alarm_task};
+
+
+alarm_ctrl_st actrl;
+// Alarm Message
+// <ALARM;A1;3;Piha>
+alarm_test_msg_st test_alarm[4] = 
+{
+    {.severity=3, .rem="Piha1", .state=0, .interval=44000, .duration=10000, .timeout=0},
+    {.severity=3, .rem="Piha2", .state=0, .interval=64000, .duration=8000, .timeout=0},
+    {.severity=3, .rem="Tera",  .state=0, .interval=111000, .duration=10000, .timeout=0},
+    {.severity=3, .rem="LA",    .state=0, .interval=133000, .duration=10000, .timeout=0},
+};
+
+void alarm_initialize(void)
+{
+    //actrl.modem = rfm69_modem;
+    atask_add_new(&a_handle);
+}
+// <ALARM;A1;3;Piha>
+void alarm_send(uint8_t severity, char *rem )
+{
+    char msg[40];
+    sprintf(msg,"<ALARM;%c%c;%d;%s>",
+        modem_data.tag,
+        modem_data.addr,
+        severity,
+        rem);
+    Serial.println(msg);
+    //actrl.modem->radiate(msg);
+}
+
+bool alarm_test_state_machine(alarm_test_msg_st *atp)
+{
+    bool did_radiate = false;
+    switch(atp->state)
+    {
+        case 0:
+            atp->state = 10;
+            break;
+        case 10:
+            atp->state = 20;
+            atp->timeout = millis()+atp->interval;
+        case 20:
+            if (millis() > atp->timeout){
+                alarm_send(atp->severity, atp->rem);
+                did_radiate = true;
+                atp->timeout = millis()+atp->duration;
+                atp->state = 30;
+            }
+            break;
+        case 30:
+            if (millis() > atp->timeout){
+                alarm_send(0, atp->rem);
+                did_radiate = true;
+                atp->state = 10;
+            }
+            break;
+        case 40:
+            atp->state = 10;
+            break;
+    }
+    return did_radiate;
+}
+
+void alarm_task(void)
+{
+    static uint8_t  test_indx = 0;
+
+    switch(a_handle.state)
+    {
+        case 0:
+            a_handle.state = 10;
+            break;
+        case 10:
+            if(test_indx >= 4) test_indx=0;
+            if (alarm_test_state_machine(&test_alarm[test_indx])){
+                a_handle.state = 20;
+                actrl.timeout = millis() + 2000;
+            }
+            test_indx++;
+            break;
+        case 20:
+            if (millis() > actrl.timeout) a_handle.state = 10;
+            break;
+        case 30:
+            a_handle.state = 10;
+            break;
+
+    }
+}
+
+*********************************************************************************************************
+
+
+#define NBR_TEST_MSG  4
+#define LEN_TEST_MSG  32
+const char test_msg[NBR_TEST_MSG][LEN_TEST_MSG] =
+{  //12345678901234567890123456789012
+    "<R1X1J1:Dock;T_bmp1;9.1;->",
+    "<R1X1J1:Dock;T_dht22;8.7;->",
+    "<R1X1J1:Dock;T_Water;5.3;->",
+    "<R1X1J1:Dock;ldr1;0.33;->",
+};
+void send_test_data_task(void);
+atask_st send_test_data_handle     = {"Send Test Task ", 10000,0, 0, 255, 0, 1, send_test_data_task};
+
+
+void send_test_data_task(void)
+{
+    static uint8_t mindx = 0;
+    Serial.println(test_msg[mindx]);
+    SerialTFT.println(test_msg[mindx]);
+    if(++mindx >= NBR_TEST_MSG) mindx = 0;
+}
+
+
+******************************************************************************************************
+
 // function prototypes
 void handler_task(void);
 
