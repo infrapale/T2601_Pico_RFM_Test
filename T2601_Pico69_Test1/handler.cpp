@@ -12,6 +12,7 @@
 #define     MSG_FIELD_LEN       16
 #define     BUFF_LEN            80
 #define     ENCRYPTKEY          RFM69_KEY   // defined in secret.h
+#define     TIME_TX_INTERVAL    60000
 
 RH_RF69         rf69(RFM69_CS, RFM69_INT);
 Rfm69Modem      rfm69_modem(&rf69,  RFM69_RST, -1 );
@@ -43,10 +44,11 @@ typedef struct
 
 typedef struct
 {
-    char        mbuff[BUFF_LEN];
-    int16_t     rssi;
-    uint8_t     nbr_fields;
+    char            mbuff[BUFF_LEN];
+    int16_t         rssi;
+    uint8_t         nbr_fields;
     date_time_st    date_time;
+    int8_t          tx_indx;         
 } handler_ctrl_st;
 
 
@@ -62,6 +64,7 @@ handler_ctrl_st hctrl =
     .rssi = 0,
     .nbr_fields = 0,
     .date_time = {0,0,0,0,0},
+    .tx_indx = -1
 };
 void handler_task(void);
 void modem_task(void);
@@ -75,8 +78,9 @@ void handler_initialize(void)
 {
     rfm69_modem.initialize(MY_MODULE_TAG, MY_MODULE_ADDR, key);
     rfm69_modem.radiate(__APP__);
-
+    hctrl.tx_indx = uart_reserve_tx_buffer(TIME_TX_INTERVAL);
     atask_add_new(&hth);
+    atask_add_new(&mth);
 }
 
 uint8_t handler_find_match(char *msg_tag)
@@ -121,7 +125,7 @@ uint8_t handler_find_match(char *msg_tag)
 
 void handler_print_fields(void)
 {
-    Serial.printf("Number of fields: %d : ",hctrl.nbr_fields);
+    // Serial.printf("Number of fields: %d : ",hctrl.nbr_fields);
     for(uint8_t i = 0; i < hctrl.nbr_fields; i++)
     {
         Serial.printf("%s ",msg_field[i]);
@@ -252,13 +256,13 @@ void handler_task(void)
             {
                 handler_print_fields();
                 if(handler_process_fields()) {
-                    SerialTFT.println(hctrl.mbuff);
+                    // SerialTFT.println(hctrl.mbuff);
+                    uart_add_msg(hctrl.tx_indx, hctrl.mbuff);
                     hth.state = 30;
                 } else hth.state = 100;
             } else hth.state = 100;
             break;
         case 30:
-            handler_print_fields();
             hth.state = 10;
             break;
         case 100:    

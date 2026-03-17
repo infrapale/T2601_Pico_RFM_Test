@@ -30,7 +30,9 @@ Relay Mesage      <#R12=x>   x:  0=off, 1=on, T=toggle
 #include "secrets.h"
 #include "atask.h"
 #include "io.h"
+#include "uart.h"
 #include "handler.h"
+#include "ruuvi.h"
 
 //*********************************************************************************************
 #define SERIAL_BAUD   9600
@@ -40,16 +42,16 @@ main_ctrl_st ctrl = {0};
 
 void debug_print_task(void);
 void rfm_receive_task(void); 
-void modem_task(void);
 
 atask_st debug_print_handle        = {"Debug Print    ", 5000,0, 0, 255, 0, 1, debug_print_task};
-atask_st modem_handle              = {"Radio Modem    ", 100,0, 0, 255, 0, 1, modem_task};
 
 void initialize_tasks(void)
 {
     atask_initialize();
-    //atask_add_new(&debug_print_handle);
-    atask_add_new(&modem_handle);
+    atask_add_new(&debug_print_handle);
+    uart_initialize();
+    handler_initialize();
+    ruuvi_initialize();
 }
 
 
@@ -68,7 +70,6 @@ void setup()
     SerialTFT.begin(9600);
     io_initialize();
     initialize_tasks();
-    handler_initialize();
 }
 
 void setup1(){
@@ -98,7 +99,6 @@ void run_100ms(void)
 
 void debug_print_task(void)
 {
-  atask_print_status(true);
-  handler_debug_print();
+    atask_print_status(true);
 }
 

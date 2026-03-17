@@ -82,6 +82,7 @@ UART Command Syntax
       Y Relay
       K Keypad
       C Clock/Time
+      B BLE / RuuviTag
       # All modules
     module_addr and sender addr
       0-9
@@ -112,6 +113,10 @@ UART Command Syntax
           [RFM69]  --> <##C1T1=;2026;03;16;09;09>
           ! Check and Identify Message, if OK:
           [SerialTFT] <-- <##C1T1=;2026;03;16;09;09>CrLf
+      Scan RuuviTag and relay Data
+          [Ruuvi] -->  [ ....] 
+          ! Identify Ruuvi and process data
+          [SerialTFT] <-- <##B1T1=;Abcdef;21.4;44.0;2.9;>CrLf
 
       Need to verified....
 
