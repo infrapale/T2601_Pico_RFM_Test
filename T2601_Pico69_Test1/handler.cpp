@@ -5,19 +5,21 @@
 #include "uart.h"
 #include "atask.h"
 #include "secrets.h"
+#ifdef ENABLE_RFM69
 #include <RH_RF69.h>
 #include "Rfm69Modem.h"
-
+#endif
 #define     MSG_MAX_FIELD_NBR   16
 #define     MSG_FIELD_LEN       16
 #define     BUFF_LEN            80
 #define     ENCRYPTKEY          RFM69_KEY   // defined in secret.h
 #define     TIME_TX_INTERVAL    60000
 
+#ifdef ENABLE_RFM69
 RH_RF69         rf69(RFM69_CS, RFM69_INT);
 Rfm69Modem      rfm69_modem(&rf69,  RFM69_RST, -1 );
 modem_data_st   modem_data = {MY_MODULE_TAG, MY_MODULE_ADDR};
-
+#endif
 
 typedef enum
 {
@@ -67,20 +69,23 @@ handler_ctrl_st hctrl =
     .tx_indx = -1
 };
 void handler_task(void);
+#ifdef ENABLE_RFM69
 void modem_task(void);
-
 atask_st mth                = {"Radio Modem    ", 100,0, 0, 255, 0, 1, modem_task};
 atask_st hth                = {"Handler Task   ", 100,0, 0, 255, 0, 1, handler_task};
+#endif
 
 uint8_t key[] = RFM69_KEY;
 
 void handler_initialize(void)
 {
+    #ifdef ENABLE_RFM69
     rfm69_modem.initialize(MY_MODULE_TAG, MY_MODULE_ADDR, key);
     rfm69_modem.radiate(__APP__);
+    atask_add_new(&mth);
     hctrl.tx_indx = uart_reserve_tx_buffer(TIME_TX_INTERVAL);
     atask_add_new(&hth);
-    atask_add_new(&mth);
+    #endif
 }
 
 uint8_t handler_find_match(char *msg_tag)
@@ -229,10 +234,12 @@ bool handler_split_msg(char *msg, int16_t rssi )
 
 void modem_task(void)
 {
-     rfm69_modem.modem_task();
+    #ifdef ENABLE_RFM69
+    rfm69_modem.modem_task();
+    #endif
 }
 
-
+#ifdef ENABLE_RFM69
 void handler_task(void)
 {
     switch(hth.state)
@@ -271,3 +278,4 @@ void handler_task(void)
             break;
     }
 }
+#endif
